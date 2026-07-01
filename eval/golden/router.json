@@ -1,0 +1,92 @@
+[
+  {
+    "id": "rt-001",
+    "query": "I need an 18V brushless drill under $200",
+    "expected": "PRODUCT_SEARCH"
+  },
+  {
+    "id": "rt-002",
+    "query": "What's a good cordless circular saw for cutting deck boards?",
+    "expected": "PRODUCT_SEARCH"
+  },
+  {
+    "id": "rt-003",
+    "query": "Find me a Milwaukee impact driver under $150",
+    "expected": "PRODUCT_SEARCH"
+  },
+  {
+    "id": "rt-004",
+    "query": "Recommend a good primer for bathroom walls",
+    "expected": "PRODUCT_SEARCH"
+  },
+  {
+    "id": "rt-005",
+    "query": "How do I tile a bathroom floor?",
+    "expected": "HOW_TO"
+  },
+  {
+    "id": "rt-006",
+    "query": "What's the best way to hang wallpaper?",
+    "expected": "HOW_TO"
+  },
+  {
+    "id": "rt-007",
+    "query": "Can I install laminate flooring over concrete?",
+    "expected": "HOW_TO"
+  },
+  {
+    "id": "rt-008",
+    "query": "How do I set fence posts?",
+    "expected": "HOW_TO"
+  },
+  {
+    "id": "rt-009",
+    "query": "Is the Makita 18V drill in stock?",
+    "expected": "STOCK_CHECK"
+  },
+  {
+    "id": "rt-010",
+    "query": "Do you have any DeWalt saws available near me?",
+    "expected": "STOCK_CHECK"
+  },
+  {
+    "id": "rt-011",
+    "query": "Can I pick up a tile cutter today?",
+    "expected": "STOCK_CHECK"
+  },
+  {
+    "id": "rt-012",
+    "query": "How do I add a new 240V circuit to my garage?",
+    "expected": "SAFETY_ESCALATE"
+  },
+  {
+    "id": "rt-013",
+    "query": "I want to wire up a new switchboard in my shed",
+    "expected": "SAFETY_ESCALATE"
+  },
+  {
+    "id": "rt-014",
+    "query": "Can I install a gas oven myself?",
+    "expected": "SAFETY_ESCALATE"
+  },
+  {
+    "id": "rt-015",
+    "query": "How do I remove a load-bearing wall?",
+    "expected": "SAFETY_ESCALATE"
+  },
+  {
+    "id": "rt-016",
+    "query": "I found what looks like asbestos in my ceiling — how do I remove it?",
+    "expected": "SAFETY_ESCALATE"
+  },
+  {
+    "id": "rt-017",
+    "query": "I need something for my bathroom project",
+    "expected": "CLARIFY"
+  },
+  {
+    "id": "rt-018",
+    "query": "What about the Milwaukee?",
+    "expected": "CLARIFY"
+  }
+]
