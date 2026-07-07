@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ef-001",
+    "query": "I need an 18V brushless drill under $200",
+    "must_include": {
+      "subcategory": ["drill"],
+      "features_all": ["18V", "brushless"],
+      "price_max": 200
+    },
+    "must_not_include": ["brand", "in_stock_only", "price_min"]
+  },
+  {
+    "id": "ef-002",
+    "query": "Find me a Milwaukee impact driver",
+    "must_include": {
+      "brand": ["Milwaukee"],
+      "subcategory": ["impact-driver"]
+    },
+    "must_not_include": ["price_max", "price_min", "in_stock_only"]
+  },
+  {
+    "id": "ef-003",
+    "query": "DeWalt cordless drill in stock",
+    "must_include": {
+      "brand": ["DeWalt"],
+      "subcategory": ["drill"],
+      "features_all": ["cordless"],
+      "in_stock_only": true
+    }
+  },
+  {
+    "id": "ef-004",
+    "query": "Bathroom-suitable primer",
+    "must_include": {
+      "subcategory": ["primer"],
+      "features_all": ["bathroom-suitable"]
+    }
+  },
+  {
+    "id": "ef-005",
+    "query": "Weather-resistant exterior paint between $100 and $250",
+    "must_include": {
+      "features_all": ["weather-resistant"],
+      "price_min": 100,
+      "price_max": 250
+    }
+  },
+  {
+    "id": "ef-006",
+    "query": "Insulated pliers",
+    "must_include": {
+      "subcategory": ["pliers"],
+      "features_all": ["insulated"]
+    }
+  },
+  {
+    "id": "ef-007",
+    "query": "Cordless brushless angle grinder from Makita or Bosch",
+    "must_include": {
+      "subcategory": ["grinder"],
+      "features_all": ["cordless", "brushless"],
+      "brand_any": ["Makita", "Bosch"]
+    }
+  },
+  {
+    "id": "ef-008",
+    "query": "Any Ryobi tool under $100",
+    "must_include": {
+      "brand": ["Ryobi"],
+      "price_max": 100
+    },
+    "must_not_include": ["subcategory"]
+  }
+]
