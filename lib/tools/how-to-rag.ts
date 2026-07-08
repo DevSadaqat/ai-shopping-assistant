@@ -1,4 +1,5 @@
 import type { HowToResult } from "../types"
+import type { Tracer } from "../trace"
 
 const STUB_CHUNKS = [
   {
@@ -20,12 +21,28 @@ const STUB_CHUNKS = [
 
 export async function howToRag(
   query: string,
-  context?: string
+  context?: string,
+  tracer?: Tracer,
 ): Promise<HowToResult> {
   // Phase 4 replaces this with embed → retrieve → rerank → generate
-  return {
+  const result: HowToResult = {
     answer: `Here are the key steps based on our how-to guides:\n\n${STUB_CHUNKS.map((c) => c.chunk).join("\n\n")}`,
     sources: STUB_CHUNKS,
     needs_clarification: !!context && context.length > 0,
   }
+
+  tracer?.log({
+    event: "retrieval",
+    stage: "how_to_rag",
+    data: {
+      query,
+      sources: result.sources.map((s) => ({
+        title: s.title,
+        score: s.score,
+        chunk_preview: s.chunk.slice(0, 120),
+      })),
+    },
+  })
+
+  return result
 }

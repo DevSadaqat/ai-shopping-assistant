@@ -4,6 +4,7 @@ import { openai } from "@ai-sdk/openai"
 import { generateText, Output } from "ai"
 import { z } from "zod"
 import type { Product, ProductFilters } from "../types"
+import type { Tracer } from "../trace"
 
 // OpenAI's strict structured-output mode requires every schema property to be
 // present in `required`. To model "may be absent," we use nullable — the
@@ -95,12 +96,38 @@ User: "Cordless brushless angle grinder from Makita or Bosch"
 User: "Something under $80 for painting the ceiling"
 → { "query": null, "category": ["paint"], "price_max": 80, "subcategory": null, "brand": null, "features": null, "in_stock_only": null, "price_min": null }`
 
-export async function extractFilters(userQuery: string): Promise<ProductFilters> {
-  const result = await generateText({
-    model: openai("gpt-4o-mini"),
-    system: EXTRACTOR_SYSTEM,
-    prompt: userQuery,
-    output: Output.object({ schema: FiltersSchema }),
-  })
-  return stripNulls(result.output as RawFilters)
+const EXTRACTOR_MODEL = "gpt-4o-mini"
+
+export async function extractFilters(
+  userQuery: string,
+  tracer?: Tracer,
+): Promise<ProductFilters> {
+  const call = async () => {
+    const result = await generateText({
+      model: openai(EXTRACTOR_MODEL),
+      system: EXTRACTOR_SYSTEM,
+      prompt: userQuery,
+      output: Output.object({ schema: FiltersSchema }),
+    })
+    const filters = stripNulls(result.output as RawFilters)
+    return {
+      value: filters,
+      structured: filters,
+      text: result.text,
+      finishReason: result.finishReason,
+      usage: {
+        input_tokens: result.usage?.inputTokens,
+        output_tokens: result.usage?.outputTokens,
+        total_tokens: result.usage?.totalTokens,
+      },
+    }
+  }
+
+  if (!tracer) return (await call()).value
+  return tracer.wrapLLM(
+    "extractor",
+    { system: EXTRACTOR_SYSTEM, user: userQuery },
+    EXTRACTOR_MODEL,
+    call,
+  )
 }

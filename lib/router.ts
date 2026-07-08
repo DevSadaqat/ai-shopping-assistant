@@ -2,6 +2,7 @@ import { openai } from "@ai-sdk/openai"
 import { generateText, Output } from "ai"
 import { z } from "zod"
 import type { RouterResult } from "./types"
+import type { Tracer } from "./trace"
 
 const RouterSchema = z.object({
   intent: z.enum([
@@ -61,15 +62,37 @@ Q: "Weather today?"                                          → OFF_TOPIC / hig
 
 Respond with JSON only.`
 
-export async function classifyIntent(
-  userMessage: string
-): Promise<RouterResult> {
-  const result = await generateText({
-    model: openai("gpt-4o-mini"),
-    system: ROUTER_SYSTEM,
-    prompt: userMessage,
-    output: Output.object({ schema: RouterSchema }),
-  })
+const ROUTER_MODEL = "gpt-4o-mini"
 
-  return result.output as RouterResult
+export async function classifyIntent(
+  userMessage: string,
+  tracer?: Tracer,
+): Promise<RouterResult> {
+  const call = async () => {
+    const result = await generateText({
+      model: openai(ROUTER_MODEL),
+      system: ROUTER_SYSTEM,
+      prompt: userMessage,
+      output: Output.object({ schema: RouterSchema }),
+    })
+    return {
+      value: result.output as RouterResult,
+      structured: result.output,
+      text: result.text,
+      finishReason: result.finishReason,
+      usage: {
+        input_tokens: result.usage?.inputTokens,
+        output_tokens: result.usage?.outputTokens,
+        total_tokens: result.usage?.totalTokens,
+      },
+    }
+  }
+
+  if (!tracer) return (await call()).value
+  return tracer.wrapLLM(
+    "router",
+    { system: ROUTER_SYSTEM, user: userMessage },
+    ROUTER_MODEL,
+    call,
+  )
 }
