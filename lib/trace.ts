@@ -83,10 +83,8 @@ export function createTracer(traceId: string = newTraceId()): Tracer {
   }
 
   const write = (rec: TraceRecord) => {
-    const line = JSON.stringify(rec)
-    console.log(line)
     try {
-      appendFileSync(filePath, line + "\n")
+      appendFileSync(filePath, JSON.stringify(rec) + "\n")
     } catch {
       // best-effort — never let tracing break the request
     }

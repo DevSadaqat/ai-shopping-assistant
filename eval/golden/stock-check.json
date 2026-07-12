@@ -1,0 +1,28 @@
+[
+  {
+    "id": "sc-001",
+    "product_id": "prod-042",
+    "note": "same input must always produce same output (determinism)"
+  },
+  {
+    "id": "sc-002",
+    "product_id": "prod-042",
+    "store_id": "store-01",
+    "note": "store_id changes the seed"
+  },
+  {
+    "id": "sc-003",
+    "product_id": "prod-107",
+    "note": "different product_id — must differ from prod-042 across most cases"
+  },
+  {
+    "id": "sc-004",
+    "product_id": "prod-001",
+    "note": "boundary — first catalog id"
+  },
+  {
+    "id": "sc-005",
+    "product_id": "prod-500",
+    "note": "boundary — last catalog id"
+  }
+]

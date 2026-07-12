@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "seed": "tsx scripts/generate-catalog.ts",
+    "embed": "tsx scripts/embed-guides.ts",
     "trace": "tsx scripts/inspect-trace.ts",
     "eval": "vitest run"
   },
