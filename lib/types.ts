@@ -15,6 +15,7 @@ export type RouterResult = {
 export type ProductFilters = {
   query?: string
   category?: string[]
+  subcategory?: string[]
   brand?: string[]
   price_min?: number
   price_max?: number
@@ -32,7 +33,9 @@ export type Product = {
   features: string[]
   specs: Record<string, string>
   avg_rating: number
+  review_count: number
   in_stock: boolean
+  qty_on_hand: number
   sku: string
 }
 

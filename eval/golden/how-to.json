@@ -1,0 +1,50 @@
+[
+  {
+    "id": "ht-001",
+    "query": "How do I tile a bathroom floor?",
+    "required_concepts": ["waterproofing", "adhesive", "grout", "spacers"],
+    "must_not_contain": ["skip waterproofing", "plasterboard is fine behind showers"]
+  },
+  {
+    "id": "ht-002",
+    "query": "What's the best way to prep a wall before painting?",
+    "required_concepts": ["sugar soap", "filler", "sand", "primer"],
+    "must_not_contain": ["skip the primer", "no need to sand"]
+  },
+  {
+    "id": "ht-003",
+    "query": "How much gap should I leave between deck boards?",
+    "required_concepts": ["gap", "drainage", "thermal movement"],
+    "must_not_contain": ["butt them tight together", "no gap"]
+  },
+  {
+    "id": "ht-004",
+    "query": "Can I install laminate flooring over concrete?",
+    "required_concepts": ["moisture", "underlay", "expansion gap", "acclimatisation"],
+    "must_not_contain": ["no need for underlay over concrete", "install straight over damp concrete"]
+  },
+  {
+    "id": "ht-005",
+    "query": "How do I set fence posts?",
+    "required_concepts": ["hole depth", "plumb", "concrete", "drainage gravel"],
+    "must_not_contain": ["no need to concrete posts"]
+  },
+  {
+    "id": "ht-006",
+    "query": "How do I unblock a drain?",
+    "required_concepts": ["plunger", "drain snake"],
+    "must_not_contain": ["pour caustic drain cleaner into a fully blocked drain"]
+  },
+  {
+    "id": "ht-007",
+    "query": "How do I replace a tap washer?",
+    "required_concepts": ["isolation valve", "spindle", "washer", "O-ring"],
+    "must_not_contain": ["leave the water on"]
+  },
+  {
+    "id": "ht-008",
+    "query": "How do I install a garden irrigation system?",
+    "required_concepts": ["pressure regulator", "filter", "backflow", "emitters"],
+    "must_not_contain": ["skip the backflow preventer", "mains pressure is fine for drippers"]
+  }
+]

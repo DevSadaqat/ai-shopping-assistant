@@ -52,7 +52,7 @@ type Product = {
 }
 ```
 
-**Implementation:** Prisma `WHERE` clauses over SQLite. No embeddings. Filters are ANDed. `query` maps to a `contains` search on name + category only — not semantic. This is a deliberate design choice: product attributes are structured, and structured queries beat semantic similarity for filter-heavy lookups.
+**Implementation:** In-memory filters over a JSON catalog (`data/catalog.json`). No embeddings. Filters are ANDed. `query` maps to a case-insensitive `contains` search on name + category only — not semantic. This is a deliberate design choice: product attributes are structured, and structured queries beat semantic similarity for filter-heavy lookups. At ~500 SKUs a DB adds no value; the swap point to Prisma/SQLite is one function boundary.
 
 ---
 
@@ -228,7 +228,7 @@ User turn
     ▼
 Intent Router (Haiku, ~200ms)
     │
-    ├─ PRODUCT_SEARCH ──► product_search() ──► Prisma WHERE query
+    ├─ PRODUCT_SEARCH ──► product_search() ──► in-memory filters over JSON catalog
     ├─ HOW_TO         ──► how_to_rag()     ──► embed → retrieve → rerank → generate
     ├─ STOCK_CHECK    ──► stock_check()    ──► deterministic seed fn (swap for API)
     ├─ SAFETY_ESCALATE──► safety_escalate()──► static refusal, no generation
@@ -245,7 +245,7 @@ Single-agent loop: one Claude call per turn (Sonnet 4.6 for generation, Haiku fo
 |---|---|---|
 | Runtime | Next.js 15 App Router | Consistent with UIGen; familiar |
 | AI SDK | Vercel AI SDK + `@ai-sdk/anthropic` | Streaming, tool call handling |
-| DB | SQLite via Prisma | Zero-infra, portable, good for evals |
+| Catalog | JSON file (`data/catalog.json`) | Zero-infra, portable, reproducible for evals; ~500 rows doesn't warrant a DB |
 | Embeddings | OpenAI `text-embedding-3-small` | Cheap, fast, widely supported |
 | Reranker | Cohere Rerank v3 (optional) | Graceful fallback to Haiku rerank |
 | UI | React + Tailwind | Same as UIGen |
@@ -259,7 +259,7 @@ Single-agent loop: one Claude call per turn (Sonnet 4.6 for generation, Haiku fo
 Intent router with golden test. Three tool stubs returning hardcoded fixtures. Chat UI shell. Confirm routing accuracy before building retrieval.
 
 **Phase 2 — Product search + catalog (Days 4–7)**  
-Catalog generator script. Prisma schema + migration. `product_search` implementation. Product search eval passing.
+Catalog generator script writing `data/catalog.json`. `product_search` implementation with in-memory filters. Product search eval passing.
 
 **Phase 3 — Stock + safety (Days 8–10)**  
 `stock_check` with seeded sim. `safety_escalate` with rule list. Safety eval at target recall/FPR.
@@ -274,7 +274,7 @@ All three golden sets automated. Red-team session on safety boundary. "When RAG 
 
 ## Key design decisions (portfolio narrative)
 
-1. **Product search uses zero embeddings.** Structured filters over a DB beat semantic similarity when the query is attribute-driven. Embedding "18V brushless drill under $200" and doing cosine similarity would lose the hard price constraint.
+1. **Product search uses zero embeddings.** Structured filters over the catalog beat semantic similarity when the query is attribute-driven. Embedding "18V brushless drill under $200" and doing cosine similarity would lose the hard price constraint. The catalog is a JSON file, not a DB, because at ~500 SKUs the extra infra earns nothing — the principle is "structured filters, not vector search," and that holds whether filters run in SQL or in-process.
 
 2. **Routing happens before generation.** The router is not part of the generation prompt — it's a separate Haiku call. This keeps the generation prompt clean and makes the routing decision auditable and testable independently.
 

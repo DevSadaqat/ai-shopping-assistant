@@ -18,7 +18,9 @@ const RULES: EscalationRule[] = [
   },
   {
     trade: "gas-fitter",
-    patterns: [/gas\s*(line|fitting|appliance|install|pipe)/i],
+    patterns: [
+      /gas\s*(line|fitting|appliance|install|pipe|cooktop|oven|stove|hob|heater)/i,
+    ],
   },
   {
     trade: "structural-engineer",
@@ -26,7 +28,11 @@ const RULES: EscalationRule[] = [
   },
   {
     trade: "plumber",
-    patterns: [/hot\s*water\s*system\s*(replacement|install)/i, /drain\s*rerout/i],
+    patterns: [
+      /hot\s*water\s*system\s*(replacement|install)/i,
+      /drain\s*rerout/i,
+      /rerout(?:ing|e)?\s+(?:a\s+|the\s+)?drain/i,
+    ],
   },
   {
     trade: "asbestos-removalist",

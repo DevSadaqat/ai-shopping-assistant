@@ -1,0 +1,107 @@
+[
+  {
+    "id": "ps-001",
+    "query": "I need an 18V brushless drill under $200",
+    "expected_filters": { "subcategory": ["drill"], "features": ["18V", "brushless"], "price_max": 200 },
+    "golden_ids": ["prod-004", "prod-003"],
+    "constraints": {
+      "price_max": 200,
+      "features_all": ["18v", "brushless"],
+      "subcategory": "drill"
+    }
+  },
+  {
+    "id": "ps-002",
+    "query": "Find me a Milwaukee impact driver",
+    "expected_filters": { "subcategory": ["impact-driver"], "brand": ["Milwaukee"] },
+    "golden_ids": ["prod-030", "prod-025", "prod-020"],
+    "constraints": {
+      "brand": "Milwaukee",
+      "subcategory": "impact-driver"
+    }
+  },
+  {
+    "id": "ps-003",
+    "query": "DeWalt cordless drill in stock",
+    "expected_filters": { "subcategory": ["drill"], "brand": ["DeWalt"], "features": ["cordless"], "in_stock_only": true },
+    "golden_ids": ["prod-016", "prod-006", "prod-008"],
+    "constraints": {
+      "brand": "DeWalt",
+      "features_all": ["cordless"],
+      "in_stock": true,
+      "subcategory": "drill"
+    }
+  },
+  {
+    "id": "ps-004",
+    "query": "Recommend a bathroom-suitable primer",
+    "expected_filters": { "subcategory": ["primer"], "features": ["bathroom-suitable"] },
+    "golden_ids": ["prod-367", "prod-366", "prod-363"],
+    "constraints": {
+      "features_all": ["bathroom-suitable"],
+      "subcategory": "primer"
+    }
+  },
+  {
+    "id": "ps-005",
+    "query": "Low-voc washable interior wall paint",
+    "expected_filters": { "subcategory": ["topcoat"], "features": ["low-voc", "washable"] },
+    "golden_ids": ["prod-384", "prod-383", "prod-387"],
+    "constraints": {
+      "features_all": ["low-voc", "washable"],
+      "subcategory": "topcoat"
+    }
+  },
+  {
+    "id": "ps-006",
+    "query": "Cordless brushless angle grinder",
+    "expected_filters": { "subcategory": ["grinder"], "features": ["cordless", "brushless"] },
+    "golden_ids": ["prod-080", "prod-089", "prod-081"],
+    "constraints": {
+      "features_all": ["cordless", "brushless"],
+      "subcategory": "grinder"
+    }
+  },
+  {
+    "id": "ps-007",
+    "query": "Circular saw with a laser guide",
+    "expected_filters": { "subcategory": ["circular-saw"], "features": ["laser-guide"] },
+    "golden_ids": ["prod-042", "prod-031"],
+    "constraints": {
+      "features_all": ["laser-guide"],
+      "subcategory": "circular-saw"
+    }
+  },
+  {
+    "id": "ps-008",
+    "query": "Weather-resistant exterior paint",
+    "expected_filters": { "subcategory": ["exterior-paint"], "features": ["weather-resistant"] },
+    "golden_ids": ["prod-391", "prod-398", "prod-402"],
+    "constraints": {
+      "features_all": ["weather-resistant"],
+      "subcategory": "exterior-paint"
+    }
+  },
+  {
+    "id": "ps-009",
+    "query": "Insulated pliers",
+    "expected_filters": { "subcategory": ["pliers"], "features": ["insulated"] },
+    "golden_ids": ["prod-119", "prod-122", "prod-121"],
+    "constraints": {
+      "features_all": ["insulated"],
+      "subcategory": "pliers"
+    }
+  },
+  {
+    "id": "ps-010",
+    "query": "Cordless Ryobi tool under $250 in stock",
+    "expected_filters": { "brand": ["Ryobi"], "features": ["cordless"], "in_stock_only": true, "price_max": 250 },
+    "golden_ids": ["prod-023", "prod-053", "prod-078"],
+    "constraints": {
+      "brand": "Ryobi",
+      "price_max": 250,
+      "features_all": ["cordless"],
+      "in_stock": true
+    }
+  }
+]

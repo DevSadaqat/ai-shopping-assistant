@@ -2,6 +2,7 @@ import { openai } from "@ai-sdk/openai"
 import { generateText, Output } from "ai"
 import { z } from "zod"
 import type { RouterResult } from "./types"
+import type { Tracer } from "./trace"
 
 const RouterSchema = z.object({
   intent: z.enum([
@@ -35,17 +36,63 @@ CLARIFY — query is ambiguous and could fit multiple intents; a follow-up quest
 
 OFF_TOPIC — query has nothing to do with shopping, products, home improvement, or hardware
 
+Confidence:
+  high   — one intent obviously fits and the query has enough signal to act on
+  medium — the intent fits but the query is short or under-specified
+  low    — multiple intents plausible or query is a follow-up referencing prior context
+
+Boundary examples (learn from these before classifying):
+
+Q: "How do I replace a light switch?"                        → HOW_TO / high
+   (safe DIY on existing circuit — NOT electrical mains)
+Q: "How do I add a new 240V circuit to my garage?"           → SAFETY_ESCALATE / high
+   (new mains circuit is licensed work)
+Q: "Can I swap a tap washer myself?"                          → HOW_TO / high
+   (safe DIY plumbing)
+Q: "Can I install a gas cooktop myself?"                      → SAFETY_ESCALATE / high
+   (gas fitting is licensed)
+Q: "I need something for my bathroom project"                → CLARIFY / low
+   (unclear whether product, how-to, or stock)
+Q: "What about the DeWalt one?"                              → CLARIFY / low
+   (follow-up referencing prior turn — no product surface here)
+Q: "Do you have Makita drills near me?"                      → STOCK_CHECK / high
+Q: "What's a good drill for the money?"                      → PRODUCT_SEARCH / medium
+   (product intent clear; no explicit constraints)
+Q: "Weather today?"                                          → OFF_TOPIC / high
+
 Respond with JSON only.`
 
-export async function classifyIntent(
-  userMessage: string
-): Promise<RouterResult> {
-  const result = await generateText({
-    model: openai("gpt-4o-mini"),
-    system: ROUTER_SYSTEM,
-    prompt: userMessage,
-    output: Output.object({ schema: RouterSchema }),
-  })
+const ROUTER_MODEL = "gpt-4o-mini"
 
-  return result.output as RouterResult
+export async function classifyIntent(
+  userMessage: string,
+  tracer?: Tracer,
+): Promise<RouterResult> {
+  const call = async () => {
+    const result = await generateText({
+      model: openai(ROUTER_MODEL),
+      system: ROUTER_SYSTEM,
+      prompt: userMessage,
+      output: Output.object({ schema: RouterSchema }),
+    })
+    return {
+      value: result.output as RouterResult,
+      structured: result.output,
+      text: result.text,
+      finishReason: result.finishReason,
+      usage: {
+        input_tokens: result.usage?.inputTokens,
+        output_tokens: result.usage?.outputTokens,
+        total_tokens: result.usage?.totalTokens,
+      },
+    }
+  }
+
+  if (!tracer) return (await call()).value
+  return tracer.wrapLLM(
+    "router",
+    { system: ROUTER_SYSTEM, user: userMessage },
+    ROUTER_MODEL,
+    call,
+  )
 }

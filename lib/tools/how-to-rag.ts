@@ -1,31 +1,104 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { openai } from "@ai-sdk/openai"
+import { embed } from "ai"
 import type { HowToResult } from "../types"
+import type { Tracer } from "../trace"
 
-const STUB_CHUNKS = [
-  {
-    title: "Bathroom Tiling Guide",
-    chunk: "Before tiling, apply waterproofing membrane to all wet areas. Use appropriate tile adhesive for the surface type. Place tile spacers for consistent grout lines. Allow adhesive to cure before grouting.",
-    score: 0.91,
-  },
-  {
-    title: "Bathroom Tiling Guide",
-    chunk: "Start tiling from the centre of the floor and work outward to ensure symmetrical cuts at the edges. Use a notched trowel to apply adhesive in even ridges.",
-    score: 0.87,
-  },
-  {
-    title: "Bathroom Tiling Guide",
-    chunk: "Mix grout to a peanut-butter consistency. Work it into joints diagonally with a rubber float. Clean excess with a damp sponge before it sets.",
-    score: 0.83,
-  },
-]
+const EMBED_MODEL = "text-embedding-3-small"
+const TOP_K = 3
+const CANDIDATE_K = 10
+
+type EmbeddedChunk = {
+  guide: string
+  guide_title: string
+  section: string
+  chunk_index: number
+  text: string
+  approx_tokens: number
+  embedding: number[]
+}
+
+let corpusCache: EmbeddedChunk[] | null = null
+
+function loadCorpus(): EmbeddedChunk[] {
+  if (corpusCache) return corpusCache
+  const path = join(process.cwd(), "data", "guides.embed.json")
+  const parsed = JSON.parse(readFileSync(path, "utf-8")) as EmbeddedChunk[]
+  corpusCache = parsed
+  return parsed
+}
+
+function cosine(a: number[], b: number[]): number {
+  let dot = 0
+  let na = 0
+  let nb = 0
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i]
+    na += a[i] * a[i]
+    nb += b[i] * b[i]
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb)
+  return denom === 0 ? 0 : dot / denom
+}
+
+function titleFor(chunk: EmbeddedChunk): string {
+  return chunk.section ? `${chunk.guide_title} — ${chunk.section}` : chunk.guide_title
+}
 
 export async function howToRag(
   query: string,
-  context?: string
+  context?: string,
+  tracer?: Tracer,
 ): Promise<HowToResult> {
-  // Phase 4 replaces this with embed → retrieve → rerank → generate
+  const corpus = loadCorpus()
+
+  const embedResult = await embed({
+    model: openai.embedding(EMBED_MODEL),
+    value: query,
+  })
+
+  tracer?.log({
+    event: "llm_call",
+    stage: "how_to_rag_embed",
+    model: EMBED_MODEL,
+    prompt: { user: query },
+    usage: {
+      input_tokens: embedResult.usage?.tokens,
+      total_tokens: embedResult.usage?.tokens,
+    },
+  })
+
+  const scored = corpus
+    .map((c) => ({ chunk: c, score: cosine(embedResult.embedding, c.embedding) }))
+    .sort((a, b) => b.score - a.score)
+
+  const candidates = scored.slice(0, CANDIDATE_K)
+  const top = candidates.slice(0, TOP_K)
+
+  const sources = top.map((s) => ({
+    title: titleFor(s.chunk),
+    chunk: s.chunk.text,
+    score: Number(s.score.toFixed(4)),
+  }))
+
+  tracer?.log({
+    event: "retrieval",
+    stage: "how_to_rag",
+    data: {
+      query,
+      candidate_count: candidates.length,
+      top_k: TOP_K,
+      candidates: candidates.map((s) => ({
+        title: titleFor(s.chunk),
+        score: Number(s.score.toFixed(4)),
+      })),
+    },
+  })
+
   return {
-    answer: `Here are the key steps based on our how-to guides:\n\n${STUB_CHUNKS.map((c) => c.chunk).join("\n\n")}`,
-    sources: STUB_CHUNKS,
+    answer: sources.map((s) => `[${s.title}]\n${s.chunk}`).join("\n\n"),
+    sources,
     needs_clarification: !!context && context.length > 0,
   }
 }
