@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
+/*
+ * Charlie design tokens — brand guide source of truth.
+ * Expose both raw CSS variables (--charlie-*) and Tailwind theme mappings
+ * so utilities like `bg-teal` / `text-charcoal` resolve against the tokens.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --charlie-color-primary: #0f766e;
+  --charlie-color-primary-hover: #0b5f58;
+  --charlie-color-mint: #c7e6db;
+  --charlie-color-soft-mint: #eaf6f1;
+  --charlie-color-coral: #ff8a5b;
+  --charlie-color-sand: #f6ead9;
+  --charlie-color-text-primary: #111827;
+  --charlie-color-text-secondary: #4b5563;
+  --charlie-color-text-placeholder: #9ca3af;
+  --charlie-color-border: #e5e7eb;
+  --charlie-color-background: #fafafb;
+  --charlie-color-surface: #ffffff;
+
+  --charlie-radius-sm: 8px;
+  --charlie-radius-md: 16px;
+  --charlie-radius-lg: 24px;
+  --charlie-radius-pill: 9999px;
+
+  --charlie-space-1: 4px;
+  --charlie-space-2: 8px;
+  --charlie-space-3: 12px;
+  --charlie-space-4: 16px;
+  --charlie-space-6: 24px;
+  --charlie-space-8: 32px;
+  --charlie-space-12: 48px;
+  --charlie-space-16: 64px;
+
+  --charlie-shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
+  --charlie-shadow-md: 0 6px 20px rgba(17, 24, 39, 0.06);
+  --charlie-shadow-lg: 0 20px 48px rgba(17, 24, 39, 0.10);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-teal: var(--charlie-color-primary);
+  --color-teal-hover: var(--charlie-color-primary-hover);
+  --color-mint: var(--charlie-color-mint);
+  --color-soft-mint: var(--charlie-color-soft-mint);
+  --color-coral: var(--charlie-color-coral);
+  --color-sand: var(--charlie-color-sand);
+  --color-charcoal: var(--charlie-color-text-primary);
+  --color-slate: var(--charlie-color-text-secondary);
+  --color-cool-grey: var(--charlie-color-text-placeholder);
+  --color-light-grey: var(--charlie-color-border);
+  --color-off-white: var(--charlie-color-background);
+
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-jakarta), "Plus Jakarta Sans", var(--font-inter), Inter, sans-serif;
+
+  --radius-sm: var(--charlie-radius-sm);
+  --radius-md: var(--charlie-radius-md);
+  --radius-lg: var(--charlie-radius-lg);
+  --radius-pill: var(--charlie-radius-pill);
+
+  --shadow-charlie-sm: var(--charlie-shadow-sm);
+  --shadow-charlie-md: var(--charlie-shadow-md);
+  --shadow-charlie-lg: var(--charlie-shadow-lg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  background: var(--charlie-color-background);
+  color: var(--charlie-color-text-primary);
+  font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-jakarta), "Plus Jakarta Sans", var(--font-inter), Inter, sans-serif;
+  color: var(--charlie-color-text-primary);
+}
+
+/*
+ * Form controls (input/textarea/select) opt out — their focus indicator is
+ * provided by the surrounding container (see ChatComposer's focus-within
+ * ring), so the universal outline would double up on the boundary.
+ */
+*:focus-visible:not(input):not(textarea):not(select) {
+  outline: 2px solid var(--charlie-color-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+@keyframes charlie-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes charlie-status-swap {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes charlie-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 60px;
+    margin-bottom: 1rem;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-2px);
+    max-height: 0;
+    margin-bottom: 0;
+  }
+}
+
+.charlie-fade-in {
+  animation: charlie-fade-in 220ms ease-out both;
+}
+
+.charlie-status-swap {
+  animation: charlie-status-swap 220ms ease-out both;
+}
+
+.charlie-fade-out {
+  animation: charlie-fade-out 200ms ease-in forwards;
+  overflow: hidden;
+}
+
+.charlie-message-in {
+  animation: charlie-fade-in 260ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
