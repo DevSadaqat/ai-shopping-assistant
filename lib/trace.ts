@@ -36,9 +36,15 @@ export type TraceRecord = {
 
 const TRACE_DIR = join(process.cwd(), ".traces")
 let dirEnsured = false
+let dirWritable = true
 function ensureDir() {
   if (dirEnsured) return
-  if (!existsSync(TRACE_DIR)) mkdirSync(TRACE_DIR, { recursive: true })
+  try {
+    if (!existsSync(TRACE_DIR)) mkdirSync(TRACE_DIR, { recursive: true })
+  } catch {
+    // Read-only FS (e.g. Vercel serverless). Traces are best-effort; disable file writes.
+    dirWritable = false
+  }
   dirEnsured = true
 }
 
@@ -83,6 +89,7 @@ export function createTracer(traceId: string = newTraceId()): Tracer {
   }
 
   const write = (rec: TraceRecord) => {
+    if (!dirWritable) return
     try {
       appendFileSync(filePath, JSON.stringify(rec) + "\n")
     } catch {
