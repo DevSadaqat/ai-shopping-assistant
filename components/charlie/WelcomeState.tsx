@@ -1,10 +1,15 @@
 import { CharlieLogo } from "./CharlieLogo"
 import { QuickActionChip } from "./QuickActionChip"
-import { PackageIcon, SearchIcon, WrenchIcon } from "./icons"
+import { PackageIcon, PaintRollerIcon, SearchIcon, WrenchIcon } from "./icons"
 
 type QuickAction = { label: string; prompt: string; icon: React.ReactNode }
 
 const ACTIONS: QuickAction[] = [
+  {
+    label: "Plan a painting project on a budget",
+    prompt: "What do I need to paint my bedroom for under $150?",
+    icon: <PaintRollerIcon size={18} />,
+  },
   {
     label: "Help me find the right product",
     prompt: "Help me find the right product for my project.",

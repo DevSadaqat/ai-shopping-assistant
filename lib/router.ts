@@ -7,6 +7,7 @@ import type { Tracer } from "./trace"
 const RouterSchema = z.object({
   intent: z.enum([
     "PRODUCT_SEARCH",
+    "PROJECT_KIT",
     "HOW_TO",
     "STOCK_CHECK",
     "SAFETY_ESCALATE",
@@ -19,8 +20,14 @@ const RouterSchema = z.object({
 const ROUTER_SYSTEM = `You are a shopping assistant intent classifier for a hardware/home-improvement store.
 Classify the user's message into exactly one intent:
 
-PRODUCT_SEARCH — user wants to find, compare, or get recommendations for products
+PRODUCT_SEARCH — user wants to find, compare, or get recommendations for a SINGLE type of product
   Triggers: "find me", "what's a good", "recommend", price/feature constraints, "I need a X"
+
+PROJECT_KIT — user wants everything they need for a whole project, especially with a total budget
+  Triggers: "what do I need to ...", "help me set up ...", "everything to ... for $X", "kit for ...",
+  "shopping list for my ...". Focus is a BUNDLE of complementary products, not one product.
+  Supported projects: painting (paint + primer + brush + roller), garden bed (soil + fertiliser +
+  hose + irrigation), bathroom fixture refresh (tap + showerhead + valve + pipe).
 
 HOW_TO — user wants instructions or advice on how to do a project or task
   Triggers: "how do I", "can I", "what's the best way to", project planning questions
@@ -58,6 +65,20 @@ Q: "What about the DeWalt one?"                              → CLARIFY / low
 Q: "Do you have Makita drills near me?"                      → STOCK_CHECK / high
 Q: "What's a good drill for the money?"                      → PRODUCT_SEARCH / medium
    (product intent clear; no explicit constraints)
+Q: "What do I need to paint my bedroom for under $150?"      → PROJECT_KIT / high
+   (whole painting project + total budget → assemble a kit)
+Q: "Help me paint my back fence"                             → PROJECT_KIT / high
+   (whole project; exterior)
+Q: "What do I need to set up a raised veggie garden bed?"    → PROJECT_KIT / high
+   (whole garden project → soil + fertiliser + hose + irrigation)
+Q: "Help me refresh my bathroom fixtures for under $300"     → PROJECT_KIT / high
+   (whole bathroom project → tap + showerhead + valve)
+Q: "What's a good exterior paint?"                           → PRODUCT_SEARCH / high
+   (one product type, not a whole-project kit)
+Q: "Recommend a good mixer tap"                              → PRODUCT_SEARCH / high
+   (one product type, not a whole-project kit)
+Q: "How do I paint a ceiling without streaks?"              → HOW_TO / high
+   (technique question, not a shopping list)
 Q: "Weather today?"                                          → OFF_TOPIC / high
 
 Respond with JSON only.`

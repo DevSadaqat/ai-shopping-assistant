@@ -14,8 +14,9 @@ import { extractFilters } from '@/lib/tools/extract-filters';
 import { stockCheck } from '@/lib/tools/stock-check';
 import { howToRag } from '@/lib/tools/how-to-rag';
 import { checkSafetyEscalation } from '@/lib/tools/safety-escalate';
+import { buildKit, detectProject, isExteriorProject } from '@/lib/tools/project-kit';
 import { createTracer } from '@/lib/trace';
-import type { ProductFilters } from '@/lib/types';
+import type { ProductFilters, ProductCardData } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,10 @@ const GENERATOR_MODEL = 'gpt-4o';
 
 export type CharlieUIMessage = UIMessage<
   unknown,
-  { status: { label: string; stage: string } }
+  {
+    status: { label: string; stage: string };
+    products: ProductCardData;
+  }
 >;
 
 async function timed<T>(fn: () => Promise<T>): Promise<{ value: T; ms: number }> {
@@ -59,6 +63,12 @@ export async function POST(req: Request) {
           data: { label, stage },
           transient: true,
         });
+      };
+
+      // Persistent (non-transient) so the cards stay attached to this assistant
+      // message in the client's `parts` array after streaming ends.
+      const emitProducts = (data: ProductCardData) => {
+        writer.write({ type: 'data-products', data });
       };
 
       // Helper closed over tracer + requestStart. Defining it here so onFinish
@@ -119,8 +129,17 @@ export async function POST(req: Request) {
                 onFinish,
               });
 
-        writer.merge(toUIMessageStream({ stream: result.stream }));
+        // sendStart: false — this execute owns the message framing (we emit the
+        // single `start` below). Without this the generator's own `start` lands
+        // AFTER our data-products part, and the client drops any part written
+        // before `start`, so the product cards never render.
+        writer.merge(toUIMessageStream({ stream: result.stream, sendStart: false }));
       };
+
+      // Open the assistant message up front so every subsequent part (status,
+      // product cards, then the streamed text) is accumulated into it. Parts
+      // written before `start` are discarded by the client.
+      writer.write({ type: 'start' });
 
       // 1. Rule-based safety FIRST. Deterministic liability boundary — the LLM
       //    is never the sole arbiter of a refusal (SPEC key decision #4).
@@ -156,7 +175,8 @@ export async function POST(req: Request) {
               stage: 'extractor',
               error: String(err),
             });
-            return { query: lastUserText } satisfies ProductFilters;
+            const fallback: ProductFilters = { query: lastUserText };
+            return fallback;
           }),
         ),
       ]);
@@ -220,6 +240,7 @@ export async function POST(req: Request) {
         emitStatus('Searching the catalog', 'product_search');
         const search = await timed(() => productSearch({ ...filters, limit: 5 }));
         resultCount = search.value.length;
+        if (resultCount > 0) emitProducts({ kind: 'search', products: search.value });
         toolContext = `Applied filters:\n${JSON.stringify(filters, null, 2)}\n\nProduct search results (${resultCount}):\n${JSON.stringify(search.value, null, 2)}`;
         tracer.log({
           event: 'tool_call',
@@ -229,6 +250,41 @@ export async function POST(req: Request) {
             filters,
             result_count: resultCount,
             result_ids: search.value.map((p) => p.id),
+          },
+        });
+      } else if (effectiveIntent === 'PROJECT_KIT') {
+        // Whole-project bundle. Project (painting/garden/bathroom) is inferred
+        // from the query; budget comes from the extractor's price_max; painting
+        // also picks interior vs exterior. Cards render the kit; the generator
+        // writes the walkthrough from the same data.
+        emitStatus('Putting together your kit', 'project_kit');
+        const project = detectProject(lastUserText) ?? 'painting';
+        const exterior = project === 'painting' && isExteriorProject(lastUserText);
+        const kitRes = await timed(() =>
+          buildKit({
+            project,
+            budget: filters.price_max ?? null,
+            exterior,
+            brand: filters.brand,
+          }),
+        );
+        const kit = kitRes.value;
+        resultCount = kit.items.length;
+        emitProducts({ kind: 'kit', kit });
+        const kind = project === 'painting' ? `painting, ${exterior ? 'exterior' : 'interior'}` : project;
+        toolContext = `Project kit (${kind}):\n${JSON.stringify(kit, null, 2)}`;
+        tracer.log({
+          event: 'tool_call',
+          stage: 'project_kit',
+          ms: kitRes.ms,
+          data: {
+            project,
+            exterior,
+            budget: kit.budget,
+            total: kit.total,
+            within_budget: kit.within_budget,
+            item_ids: kit.items.map((it) => it.product.id),
+            skipped: kit.skipped.map((s) => s.label),
           },
         });
       } else if (effectiveIntent === 'STOCK_CHECK') {
@@ -300,7 +356,10 @@ function buildSystemPrompt(intent: string, toolContext: string, resultCount: num
     if (resultCount === 0) {
       return `${base}\n\nNo products matched the customer's criteria. Explain briefly what was searched (from the applied filters below) and ask a targeted question to broaden the search (e.g. drop a constraint or try a different brand). Do not invent products.\n\n${toolContext}`;
     }
-    return `${base}\n\nThe following products match the customer's query. Present the options clearly, highlighting key specs and price. Only mention products from this list — do not invent products.\n\n${toolContext}`;
+    return `${base}\n\nThe following products match the customer's query AND are already shown to them as product cards (name, price, rating, specs, stock all visible). Do NOT re-list the products or their prices/specs as bullets — that duplicates the cards. Instead write 2-3 sentences of prose: what stands out, how to choose between them, or a top pick and why. Only reference products from this list — do not invent products.\n\n${toolContext}`;
+  }
+  if (intent === 'PROJECT_KIT' && toolContext) {
+    return `${base}\n\nThe customer wants everything for a home project (the kit's "project" field says which — painting, garden, or bathroom). A kit has been assembled from the catalog below and is ALREADY shown to them as product cards — every item name, price, rating and spec is visible in the cards. Do NOT re-list the items or their prices/specs as a numbered or bulleted list; that just duplicates the cards. Write a short, friendly walkthrough in 2-4 sentences of prose: what the kit covers as a whole, the running total vs their budget, and — if within_budget is false or items were skipped — say so plainly and suggest one next step (raise budget, smaller scope, or which item to add back). Only reference products in this kit; do not invent products.\n\n${toolContext}`;
   }
   if (intent === 'HOW_TO' && toolContext) {
     return `${base}\n\nAnswer based only on the following guide excerpts. If the excerpts don't cover the question, say so.\n\n${toolContext}`;

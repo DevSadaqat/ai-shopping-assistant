@@ -8,16 +8,27 @@ import { ChatComposer } from "@/components/charlie/ChatComposer"
 import { ChatMessage } from "@/components/charlie/ChatMessage"
 import { FeedbackLink } from "@/components/charlie/FeedbackLink"
 import { LoadingIndicator } from "@/components/charlie/LoadingIndicator"
+import { ProductCardList } from "@/components/charlie/ProductCardList"
 import { WelcomeState } from "@/components/charlie/WelcomeState"
+import type { ProductCardData } from "@/lib/types"
 
 const transport = new DefaultChatTransport({ api: "/api/chat" })
 
 type StatusData = { label: string; stage: string }
 
-type CharlieUIMessage = UIMessage<unknown, { status: StatusData }>
+type CharlieUIMessage = UIMessage<
+  unknown,
+  { status: StatusData; products: ProductCardData }
+>
 
 function getMessageText(m: UIMessage): string {
   return m.parts.filter(isTextUIPart).map((p) => p.text).join("")
+}
+
+function getProductParts(m: CharlieUIMessage): ProductCardData[] {
+  return m.parts
+    .filter((p): p is { type: "data-products"; data: ProductCardData } => p.type === "data-products")
+    .map((p) => p.data)
 }
 
 function assistantHasText(messages: UIMessage[]): boolean {
@@ -93,13 +104,27 @@ export default function CharliePage() {
           <WelcomeState onQuickAction={handleQuickAction} />
         ) : (
           <div className="py-6 space-y-4">
-            {messages.map((m) => (
-              <ChatMessage
-                key={m.id}
-                role={m.role === "user" ? "user" : "assistant"}
-                text={getMessageText(m)}
-              />
-            ))}
+            {messages.map((m) => {
+              const productParts = m.role === "assistant" ? getProductParts(m) : []
+              const text = getMessageText(m)
+              return (
+                <div key={m.id} className="space-y-3">
+                  {(text.length > 0 || m.role === "user") && (
+                    <ChatMessage
+                      role={m.role === "user" ? "user" : "assistant"}
+                      text={text}
+                    />
+                  )}
+                  {productParts.length > 0 && (
+                    <div className="pl-0 sm:pl-10">
+                      {productParts.map((data, i) => (
+                        <ProductCardList key={i} data={data} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             {showLoadingIndicator && (
               <LoadingIndicator label={agentStatus?.label ?? "Thinking"} />
             )}

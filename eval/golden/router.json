@@ -88,5 +88,35 @@
     "id": "rt-018",
     "query": "What about the Milwaukee?",
     "expected": "CLARIFY"
+  },
+  {
+    "id": "rt-019",
+    "query": "What do I need to paint my bedroom for under $150?",
+    "expected": "PROJECT_KIT"
+  },
+  {
+    "id": "rt-020",
+    "query": "Help me put together everything to paint my back fence",
+    "expected": "PROJECT_KIT"
+  },
+  {
+    "id": "rt-021",
+    "query": "Give me a shopping list for repainting my living room, budget $250",
+    "expected": "PROJECT_KIT"
+  },
+  {
+    "id": "rt-022",
+    "query": "What do I need to set up a raised veggie garden bed for under $250?",
+    "expected": "PROJECT_KIT"
+  },
+  {
+    "id": "rt-023",
+    "query": "Help me refresh my bathroom fixtures for under $300",
+    "expected": "PROJECT_KIT"
+  },
+  {
+    "id": "rt-024",
+    "query": "Recommend a good mixer tap",
+    "expected": "PRODUCT_SEARCH"
   }
 ]
