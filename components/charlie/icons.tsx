@@ -79,3 +79,17 @@ export const SparkleIcon = (p: IconProps) => (
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" />
   </Icon>
 )
+
+export const StarIcon = (p: IconProps) => (
+  <Icon fill="currentColor" strokeWidth={0} {...p}>
+    <path d="m12 2 2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.8 6.1 20.2l1.2-6.6L2.5 9l6.6-.9L12 2Z" />
+  </Icon>
+)
+
+export const PaintRollerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="14" height="6" rx="1" />
+    <path d="M17 7h3v4h-8v3" />
+    <rect x="9" y="14" width="6" height="7" rx="1" />
+  </Icon>
+)
