@@ -15,13 +15,15 @@ User turn
 Intent Router (gpt-4o-mini)         ← separate call, auditable, testable
     │
     ├─ PRODUCT_SEARCH ──► extract_filters() → product_search() ──► in-memory filters over JSON catalog (no embeddings)
+    ├─ PROJECT_KIT    ──► detect_project() → build_kit()   ──► budget-aware bundle from catalog (deterministic; CLARIFY if project unknown)
     ├─ HOW_TO         ──► how_to_rag()      ──► embed → retrieve → rerank → generate
     ├─ STOCK_CHECK    ──► stock_check()     ──► seeded sim (one-line swap for real API)
     ├─ SAFETY_ESCALATE──► safety_escalate() ──► static rule match → refusal (no generation)
-    └─ CLARIFY        ──► follow-up question (no tool call)
+    ├─ CLARIFY        ──► follow-up question (no tool call)
+    └─ OFF_TOPIC      ──► fixed redirect message (no generation)
 ```
 
-**Single-agent loop.** One gpt-4o call per turn for generation, plus a gpt-4o-mini router and (for PRODUCT_SEARCH / STOCK_CHECK) a gpt-4o-mini filter extractor. Router and extractor run in parallel; the extractor's result is only used when the router lands on PRODUCT_SEARCH or STOCK_CHECK. No multi-agent graph — the complexity isn't warranted.
+**Single-agent loop.** One `gpt-4o` call per turn for generation (`gpt-4o-mini` for the cheap CLARIFY / zero-result paths), plus a `gpt-4o-mini` router and a `gpt-4o-mini` filter extractor. Router and extractor run in parallel; the extractor's result is only used when the router lands on PRODUCT_SEARCH, PROJECT_KIT (for the budget), or STOCK_CHECK. No multi-agent graph — the complexity isn't warranted.
 
 **Safety is rule-based and runs FIRST.** `checkSafetyEscalation()` is a deterministic regex match executed before the router (SPEC key decision #4). The LLM is never the sole arbiter of a liability refusal.
 
@@ -36,7 +38,7 @@ Phase 1 establishes the routing layer and a working chat UI before any real retr
 | File | Purpose |
 |---|---|
 | `lib/types.ts` | Shared TypeScript types for all 5 intents and 4 tool contracts |
-| `lib/router.ts` | Intent classifier — separate Haiku call, returns `{ intent, confidence }` |
+| `lib/router.ts` | Intent classifier — separate `gpt-4o-mini` call, returns `{ intent, confidence }` |
 | `lib/tools/product-search.ts` | Stub — 3 hardcoded drill SKUs; filter logic for price/brand/features |
 | `lib/tools/stock-check.ts` | Stub — seeded deterministic function (`hash(product_id + store_id)`) |
 | `lib/tools/how-to-rag.ts` | Stub — 3 hardcoded bathroom tiling chunks |
@@ -44,11 +46,11 @@ Phase 1 establishes the routing layer and a working chat UI before any real retr
 | `app/api/chat/route.ts` | Chat API route: classify → tool context → `streamText` |
 | `app/page.tsx` | Chat UI shell using AI SDK v7 `useChat` |
 | `eval/golden/router.json` | 18 golden cases across all 5 intents |
-| `eval/router.eval.ts` | Vitest harness; `npm run eval` runs against live Haiku |
+| `eval/router.eval.ts` | Vitest harness; `npm run eval` runs against the live `gpt-4o-mini` router |
 
 ### Intent Router (`lib/router.ts`)
 
-A dedicated Claude Haiku call classifies every user turn before generation. Haiku is used specifically for low latency (~200ms). The output is a structured object validated against a Zod schema:
+A dedicated `gpt-4o-mini` call classifies every user turn before generation. The small model is used specifically for low latency (~200ms) and low cost. The output is a structured object validated against a Zod schema:
 
 ```typescript
 { intent: "PRODUCT_SEARCH" | "HOW_TO" | "STOCK_CHECK" | "SAFETY_ESCALATE" | "CLARIFY",
@@ -73,7 +75,7 @@ Request flow:
 3. Call `classifyIntent()` → get `intent`
 4. If `SAFETY_ESCALATE` and rule matches → stream refusal message directly (no tool context injected)
 5. Otherwise → build tool context string appropriate to the intent
-6. `streamText` with Sonnet and tool context injected into system prompt
+6. `streamText` with `gpt-4o` (or `gpt-4o-mini` for CLARIFY / zero-result nudges) and tool context injected into system prompt
 7. Return `toUIMessageStreamResponse()`
 
 ### Chat UI (`app/page.tsx`)
@@ -151,7 +153,7 @@ Golden IDs were chosen by running `productSearch` against candidate filters and 
 Structured filters (`price_max`, `features[]`, `brand[]`) over the catalog beat cosine similarity when the query is attribute-driven. Embedding "18V brushless drill under $200" and doing vector search loses the hard price constraint. Catalog is a JSON file (not a DB) — at ~500 SKUs the extra infra earns nothing, and the principle is *"structured filters, not vector search,"* which holds in either substrate.
 
 ### 2. Routing happens before generation
-The router is a separate Haiku call, not a system prompt instruction to the generation model. This keeps the generation prompt clean and makes the routing decision independently testable.
+The router is a separate `gpt-4o-mini` call, not a system prompt instruction to the generation model. This keeps the generation prompt clean and makes the routing decision independently testable.
 
 ### 3. Stock is a tool, not RAG
 Inventory state changes in real time. Any RAG approach would serve stale data. The Phase 1 seeded sim is a one-function swap for a real API call.
@@ -166,11 +168,11 @@ For a hard liability boundary, a deterministic rule set with known recall beats 
 | Layer | Choice |
 |---|---|
 | Runtime | Next.js 15 App Router (Next 16.2.9) |
-| AI SDK | Vercel AI SDK v7 (`ai@7.0.4`, `@ai-sdk/anthropic@4.0.1`, `@ai-sdk/react@4.0.5`) |
+| AI SDK | Vercel AI SDK v7 (`ai@7.0.4`, `@ai-sdk/openai@4.0.3`, `@ai-sdk/react@4.0.5`) |
 | Models | Router + extractor: `gpt-4o-mini` / Generation: `gpt-4o` |
 | Catalog | JSON file (`data/catalog.json`), deterministic seed script |
 | Embeddings | OpenAI `text-embedding-3-small` (Phase 4) |
-| Reranker | Cohere Rerank v3, fallback to Haiku rerank (Phase 4) |
+| Reranker | Cohere Rerank v3, fallback to `gpt-4o-mini` rerank (Phase 4) |
 | UI | React 19 + Tailwind v4 |
 | Evals | Vitest + LLM-as-judge |
 
@@ -182,6 +184,10 @@ For a hard liability boundary, a deterministic rule set with known recall beats 
 |---|---|---|
 | 1 — Router + stubs + UI | Intent router, tool stubs, chat shell, router golden test | ✅ Done |
 | 2 — Product search + catalog | Catalog generator, JSON catalog, real `product_search`, filter extractor, product eval | ✅ Done |
-| 3 — Stock + safety | `stock_check` seeded sim, `safety_escalate` rule list, safety eval (recall ≥ 0.95, FPR ≤ 0.10) | Pending |
-| 4 — RAG pipeline | Guide chunking + embedding, cosine retrieval, reranker, `how_to_rag` eval | Pending |
-| 5 — Evals + write-up | All three golden sets automated, red-team safety session, README with diagram | Pending |
+| 3 — Stock + safety | `stock_check` seeded sim, `safety_escalate` rule list, safety eval (recall ≥ 0.95, FPR ≤ 0.10) | ✅ Done |
+| 4 — RAG pipeline | Guide chunking + embedding, cosine retrieval, `how_to_rag` eval | ✅ Done (reranker not yet wired — retrieval is cosine-only) |
+| 5 — Evals + write-up | All golden sets automated (router, product, kit, stock, how-to, safety), red-team safety session, README with diagram | In progress — eval harnesses done; red-team session pending |
+
+### Later addition — PROJECT_KIT
+
+`PROJECT_KIT` was added after the original five phases: a budget-aware bundle assembler (`lib/tools/project-kit.ts`) that picks a complementary set of catalog products (paint + roller + brush + primer, or garden / bathroom equivalents) under a total budget. It is fully deterministic — no LLM, no embeddings — and mirrors `product_search`'s rating-then-price ranking. The router gained a `PROJECT_KIT` intent; when the intent fires but no supported project is detected, the route asks a clarifying question rather than guessing. Golden eval: `eval/project-kit.eval.ts`.

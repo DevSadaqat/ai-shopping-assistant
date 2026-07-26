@@ -18,7 +18,7 @@ The router classifies every user turn into one of five states:
 | `SAFETY_ESCALATE` | licensed-work triggers (see rules below) | `safety_escalate` tool |
 | `CLARIFY` | ambiguous query that could go multiple ways | follow-up question, no tool call |
 
-Classification is a separate Claude call (Haiku, low-latency) before the main response. The router outputs one state — no multi-intent blending on a single turn.
+Classification is a separate `gpt-4o-mini` call (low-latency) before the main response. The router outputs one state — no multi-intent blending on a single turn.
 
 ---
 
@@ -69,7 +69,7 @@ type HowToResult = {
 **Implementation:** 
 1. Embed `query` with `text-embedding-3-small`
 2. Cosine similarity over pre-embedded how-to guide chunks (stored in SQLite as JSON blobs)
-3. Retrieve top-10, rerank with `cohere-rerank-v3` (or a second Haiku call if no Cohere key)
+3. Retrieve top-10, rerank with `cohere-rerank-v3` (or a second `gpt-4o-mini` call if no Cohere key) — note: reranker not yet wired; current retrieval is cosine-only
 4. Top-3 chunks go into the generation prompt as grounding context
 
 How-to guides live in `data/guides/` as markdown files, chunked to ~400 tokens with 50-token overlap at paragraph boundaries.
@@ -226,7 +226,7 @@ Three golden test sets, one per tool path. All live in `eval/golden/`.
 User turn
     │
     ▼
-Intent Router (Haiku, ~200ms)
+Intent Router (gpt-4o-mini, ~200ms)
     │
     ├─ PRODUCT_SEARCH ──► product_search() ──► in-memory filters over JSON catalog
     ├─ HOW_TO         ──► how_to_rag()     ──► embed → retrieve → rerank → generate
@@ -235,7 +235,7 @@ Intent Router (Haiku, ~200ms)
     └─ CLARIFY        ──► follow-up question (no tool call)
 ```
 
-Single-agent loop: one Claude call per turn (Sonnet 4.6 for generation, Haiku for routing). No chaining to a second agent. The router and generator are separate calls, not a multi-agent graph — that complexity isn't warranted here.
+Single-agent loop: one primary model call per turn (`gpt-4o` for generation, `gpt-4o-mini` for routing and for the cheap CLARIFY / zero-result paths). No chaining to a second agent. The router and generator are separate calls, not a multi-agent graph — that complexity isn't warranted here.
 
 ---
 
@@ -244,10 +244,10 @@ Single-agent loop: one Claude call per turn (Sonnet 4.6 for generation, Haiku fo
 | Layer | Choice | Reason |
 |---|---|---|
 | Runtime | Next.js 15 App Router | Consistent with UIGen; familiar |
-| AI SDK | Vercel AI SDK + `@ai-sdk/anthropic` | Streaming, tool call handling |
+| AI SDK | Vercel AI SDK v7 + `@ai-sdk/openai` | Streaming, tool call handling |
 | Catalog | JSON file (`data/catalog.json`) | Zero-infra, portable, reproducible for evals; ~500 rows doesn't warrant a DB |
 | Embeddings | OpenAI `text-embedding-3-small` | Cheap, fast, widely supported |
-| Reranker | Cohere Rerank v3 (optional) | Graceful fallback to Haiku rerank |
+| Reranker | Cohere Rerank v3 (optional) | Graceful fallback to `gpt-4o-mini` rerank |
 | UI | React + Tailwind | Same as UIGen |
 | Evals | Vitest harness + LLM-as-judge | Automated, runnable in CI |
 
@@ -276,7 +276,7 @@ All three golden sets automated. Red-team session on safety boundary. "When RAG 
 
 1. **Product search uses zero embeddings.** Structured filters over the catalog beat semantic similarity when the query is attribute-driven. Embedding "18V brushless drill under $200" and doing cosine similarity would lose the hard price constraint. The catalog is a JSON file, not a DB, because at ~500 SKUs the extra infra earns nothing — the principle is "structured filters, not vector search," and that holds whether filters run in SQL or in-process.
 
-2. **Routing happens before generation.** The router is not part of the generation prompt — it's a separate Haiku call. This keeps the generation prompt clean and makes the routing decision auditable and testable independently.
+2. **Routing happens before generation.** The router is not part of the generation prompt — it's a separate `gpt-4o-mini` call. This keeps the generation prompt clean and makes the routing decision auditable and testable independently.
 
 3. **Stock is a tool, not RAG.** Inventory state changes in real time. Any RAG approach would serve stale data. The swap point from simulated → real API is one function signature.
 
