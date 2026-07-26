@@ -93,13 +93,16 @@ export async function POST(req: Request) {
 
       // Helper closed over tracer + requestStart. Defining it here so onFinish
       // can log request_end with the full path taken and total token roll-up.
-      const runGenerator = (
+      const runGenerator = async (
         stage: string,
         args:
           | { system: string; prompt: string }
           | { system: string; messages: Awaited<ReturnType<typeof convertToModelMessages>> },
         path: string,
         model: string = GENERATOR_MODEL,
+        // Runs once the generator's text has fully streamed to the client. Used
+        // to attach product cards AFTER the answer text, not before.
+        onComplete?: () => void,
       ) => {
         const start = performance.now();
         const onFinish = ({
@@ -154,11 +157,29 @@ export async function POST(req: Request) {
         // single `start` below). Without this the generator's own `start` lands
         // AFTER our data-products part, and the client drops any part written
         // before `start`, so the product cards never render.
-        writer.merge(toUIMessageStream({ stream: result.stream, sendStart: false }));
+        //
+        // Pump the generator's UI parts to the client manually (rather than
+        // fire-and-forget `writer.merge`) so we have a completion point: once
+        // the text has fully streamed we run `onComplete`, which attaches the
+        // product cards. This guarantees text-first, cards-after ordering.
+        const genStream = toUIMessageStream({ stream: result.stream, sendStart: false });
+        const reader = genStream.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            // The generator stream is typed as a generic UIMessage chunk; it
+            // carries only text parts here, which are valid for CharlieUIMessage.
+            writer.write(value as Parameters<typeof writer.write>[0]);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        onComplete?.();
       };
 
       // Open the assistant message up front so every subsequent part (status,
-      // product cards, then the streamed text) is accumulated into it. Parts
+      // the streamed text, then product cards) is accumulated into it. Parts
       // written before `start` are discarded by the client.
       writer.write({ type: 'start' });
 
@@ -256,12 +277,15 @@ export async function POST(req: Request) {
 
       let toolContext = '';
       let resultCount = 0;
+      // Product cards are held here and emitted only after the generator's text
+      // has streamed, so the answer appears first and the cards attach below it.
+      let pendingProducts: ProductCardData | null = null;
 
       if (effectiveIntent === 'PRODUCT_SEARCH') {
         emitStatus('Searching the catalog', 'product_search');
         const search = await timed(() => productSearch({ ...filters, limit: 5 }));
         resultCount = search.value.length;
-        if (resultCount > 0) emitProducts({ kind: 'search', products: search.value });
+        if (resultCount > 0) pendingProducts = { kind: 'search', products: search.value };
         toolContext = `Applied filters:\n${JSON.stringify(filters)}\n\nProduct search results (${resultCount}):\n${JSON.stringify(search.value.map(compactProduct))}`;
         tracer.log({
           event: 'tool_call',
@@ -308,7 +332,7 @@ export async function POST(req: Request) {
         );
         const kit = kitRes.value;
         resultCount = kit.items.length;
-        emitProducts({ kind: 'kit', kit });
+        pendingProducts = { kind: 'kit', kit };
         const kind = project === 'painting' ? `painting, ${exterior ? 'exterior' : 'interior'}` : project;
         toolContext = `Project kit (${kind}):\n${JSON.stringify(compactKit(kit))}`;
         tracer.log({
@@ -377,11 +401,14 @@ export async function POST(req: Request) {
       const lightGeneration =
         effectiveIntent === 'CLARIFY' ||
         (effectiveIntent === 'PRODUCT_SEARCH' && resultCount === 0);
-      runGenerator(
+      await runGenerator(
         'generator',
         { system: systemPrompt, messages: modelMessages },
         `generator:${effectiveIntent.toLowerCase()}`,
         lightGeneration ? GENERATOR_MODEL_LIGHT : GENERATOR_MODEL,
+        () => {
+          if (pendingProducts) emitProducts(pendingProducts);
+        },
       );
     },
   });

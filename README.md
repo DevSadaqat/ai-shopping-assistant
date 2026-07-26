@@ -4,7 +4,7 @@ Charlie is an AI assistant for a hardware / home-improvement store. It helps cus
 
 It's a portfolio project built to show how I design and ship an LLM product end to end: intent routing, tool use, structured retrieval, a budget-aware recommendation engine, a polished chat UI with product tiles, request-level observability, and evals.
 
-> **Live demo:** add your Vercel URL here
+> **Live demo:** https://ai-shopping-assistant-hazel.vercel.app/
 
 <!-- Optional: a short GIF of a full conversation is the single best thing to put here.
      Record one and drop it in docs/screenshots/demo.gif -->
@@ -15,32 +15,41 @@ It's a portfolio project built to show how I design and ship an LLM product end 
 ## What it does
 
 ### 1. Find a product fast
-Ask in plain English, like *"I need an 18V brushless drill under $200"*, and Charlie extracts the filters (brand, price, features, category), searches the catalog, and returns real products as tiles with price, rating, specs, and stock status.
+
+Ask in plain English, like _"I need an 18V brushless drill under $200"_, and Charlie extracts the filters (brand, price, features, category), searches the catalog, and returns real products as tiles with price, rating, specs, and stock status.
 
 <!-- Screenshot: product search results with product tiles -->
+
 ![Product search](docs/screenshots/product-search.png)
 
 ### 2. Plan a project on a budget 🎨🌱🚿
-Tell Charlie about a project and a budget, like *"What do I need to paint my bedroom for under $150?"*, and it assembles a **complete kit** of complementary products that fits the budget, shown as tiles with a running total. If money's tight it keeps the essentials and drops the nice-to-haves; if nothing fits, it says so and suggests a next step.
+
+Tell Charlie about a project and a budget, like _"What do I need to paint my bedroom for under $150?"_, and it assembles a **complete kit** of complementary products that fits the budget, shown as tiles with a running total. If money's tight it keeps the essentials and drops the nice-to-haves; if nothing fits, it says so and suggests a next step.
 
 Supported projects today:
+
 - **Painting:** paint, primer, brush and roller (interior/exterior aware)
 - **Garden bed:** soil, fertiliser, hose and irrigation
 - **Bathroom refresh:** tap, showerhead, valve and pipe
 
 <!-- Screenshot: painting project kit with budget summary + tiles -->
+
 ![Painting kit](docs/screenshots/kit-painting.png)
 
 <!-- Screenshot: garden bed kit -->
+
 ![Garden kit](docs/screenshots/kit-garden.png)
 
 <!-- Screenshot: bathroom fixture kit -->
+
 ![Bathroom kit](docs/screenshots/kit-bathroom.png)
 
 ### 3. Know its limits (safety first) ⚠️
-If a customer asks about work that legally requires a licensed trade, such as **asbestos removal, mains/electrical rewiring, gas fitting, or structural / load-bearing changes**, Charlie does **not** try to help them DIY it. It returns a clear, deterministic message pointing them to the right professional. This check runs *before* any language model call, so the LLM is never the sole arbiter of a safety refusal.
+
+If a customer asks about work that legally requires a licensed trade, such as **asbestos removal, mains/electrical rewiring, gas fitting, or structural / load-bearing changes**, Charlie does **not** try to help them DIY it. It returns a clear, deterministic message pointing them to the right professional. This check runs _before_ any language model call, so the LLM is never the sole arbiter of a safety refusal.
 
 <!-- Screenshot: asbestos / electrical safety-escalation response -->
+
 ![Safety escalation](docs/screenshots/safety-escalation.png)
 
 Charlie also handles **how-to questions**, **stock checks**, asks a **clarifying question** when a request is ambiguous, and politely declines **off-topic** chatter.
@@ -108,6 +117,7 @@ npm run trace   # pretty-print the newest request trace (see below)
 ```
 
 ### Try these prompts
+
 - `I need an 18V brushless drill under $200` (product search)
 - `What do I need to paint my bedroom for under $150?` (painting kit)
 - `Help me set up a raised veggie garden bed for under $250` (garden kit)
@@ -134,7 +144,7 @@ npm run eval
 
 ## Observability
 
-When an AI agent fails, a stack trace tells you nothing about *why* the model chose what it chose. Every chat request emits a structured trace covering the full reasoning workflow: router decision, filter extraction, tool calls, retrieval context, generator prompt/response, and per-call token usage.
+When an AI agent fails, a stack trace tells you nothing about _why_ the model chose what it chose. Every chat request emits a structured trace covering the full reasoning workflow: router decision, filter extraction, tool calls, retrieval context, generator prompt/response, and per-call token usage.
 
 ### Where traces live
 
@@ -146,16 +156,16 @@ When an AI agent fails, a stack trace tells you nothing about *why* the model ch
 
 Every line is a JSON record sharing the same `trace_id`. Events emitted per request:
 
-| Event | Stage(s) | What it captures |
-|---|---|---|
-| `request_start` | `request` | User message, message count |
-| `safety_rule_match` | `safety_rule` | Matched trade and refusal message (no LLM call) |
-| `llm_call` | `router`, `extractor`, `generator*` | Full system and user prompt, structured output, finish reason, model, `input_tokens` / `output_tokens` / `total_tokens`, ms |
-| `router_decision` | `router` | Raw intent, confidence, effective intent, parallel latencies |
-| `tool_call` | `product_search`, `project_kit`, `stock_check`, `how_to_rag` | Filters, result IDs, resolved product, kit total/budget, stock payload, ms |
-| `retrieval` | `how_to_rag` | Query, source titles, scores, chunk previews |
-| `error` | any | Error message and which stage failed |
-| `request_end` | `request` | Total ms, path taken, cumulative token roll-up across all model calls |
+| Event               | Stage(s)                                                     | What it captures                                                                                                            |
+| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `request_start`     | `request`                                                    | User message, message count                                                                                                 |
+| `safety_rule_match` | `safety_rule`                                                | Matched trade and refusal message (no LLM call)                                                                             |
+| `llm_call`          | `router`, `extractor`, `generator*`                          | Full system and user prompt, structured output, finish reason, model, `input_tokens` / `output_tokens` / `total_tokens`, ms |
+| `router_decision`   | `router`                                                     | Raw intent, confidence, effective intent, parallel latencies                                                                |
+| `tool_call`         | `product_search`, `project_kit`, `stock_check`, `how_to_rag` | Filters, result IDs, resolved product, kit total/budget, stock payload, ms                                                  |
+| `retrieval`         | `how_to_rag`                                                 | Query, source titles, scores, chunk previews                                                                                |
+| `error`             | any                                                          | Error message and which stage failed                                                                                        |
+| `request_end`       | `request`                                                    | Total ms, path taken, cumulative token roll-up across all model calls                                                       |
 
 ### Inspecting a trace
 
