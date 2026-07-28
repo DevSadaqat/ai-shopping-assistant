@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { randomBytes } from "node:crypto"
+import { Langfuse, type LangfuseTraceClient } from "langfuse"
 
 export type TraceEvent =
   | "request_start"
@@ -56,6 +57,126 @@ export function newTraceId(): string {
   return shortId("trc")
 }
 
+// --- Langfuse sink -----------------------------------------------------------
+// A single process-wide client is shared across requests. Events are queued
+// in-memory and flushed in batches over HTTP by a background worker, so calls
+// here never block the request path. On serverless the caller must await
+// `flushTraces()` (via Next's `after()`) before the function freezes, or queued
+// events are lost. The client only comes to life when both keys are present, so
+// local dev without keys keeps working and falls back to the JSONL file below.
+let langfuseSingleton: Langfuse | null | undefined
+function getLangfuse(): Langfuse | null {
+  if (langfuseSingleton !== undefined) return langfuseSingleton
+  const publicKey = process.env.LANGFUSE_PUBLIC_KEY
+  const secretKey = process.env.LANGFUSE_SECRET_KEY
+  if (!publicKey || !secretKey) {
+    langfuseSingleton = null
+    return null
+  }
+  langfuseSingleton = new Langfuse({
+    publicKey,
+    secretKey,
+    // Defaults to Langfuse Cloud (https://cloud.langfuse.com). Set for EU/US
+    // region or self-hosted instances.
+    baseUrl: process.env.LANGFUSE_BASEURL,
+  })
+  return langfuseSingleton
+}
+
+/**
+ * Flush all queued Langfuse events. Call (and await) this AFTER the response
+ * has been sent — on Vercel, wrap it in `after()` from `next/server` so it runs
+ * post-response without adding latency to the user-perceived stream. No-op when
+ * Langfuse is not configured.
+ */
+export async function flushTraces(): Promise<void> {
+  const lf = getLangfuse()
+  if (!lf) return
+  try {
+    await lf.flushAsync()
+  } catch {
+    // best-effort — never let flushing break the request lifecycle
+  }
+}
+
+function toOpenAIUsage(u?: LLMUsage) {
+  if (!u) return undefined
+  return {
+    promptTokens: u.input_tokens,
+    completionTokens: u.output_tokens,
+    totalTokens: u.total_tokens,
+  }
+}
+
+// Map one flat trace record onto the right Langfuse observation. `llm_call`
+// becomes a generation (model + tokens + cost tracking); timed work becomes a
+// span; instantaneous decisions become events; errors are flagged at ERROR
+// level so they surface in the UI. Timestamps are back-dated from `ms` so the
+// UI shows the real duration even though we log after the call completes.
+function recordToLangfuse(trace: LangfuseTraceClient, rec: TraceRecord) {
+  const now = Date.now()
+  const startTime = rec.ms != null ? new Date(now - rec.ms) : new Date(now)
+  const endTime = new Date(now)
+
+  switch (rec.event) {
+    case "llm_call":
+      trace.generation({
+        name: rec.stage,
+        model: rec.model,
+        startTime,
+        endTime,
+        completionStartTime: startTime,
+        input: rec.prompt?.messages ?? {
+          system: rec.prompt?.system,
+          user: rec.prompt?.user,
+        },
+        output: rec.response?.text ?? rec.response?.structured,
+        usage: toOpenAIUsage(rec.usage),
+        metadata: { finish_reason: rec.response?.finish_reason, ...rec.data },
+      })
+      break
+
+    case "request_start":
+      // Trace-level input/name are already set at creation; nothing to add.
+      break
+
+    case "request_end":
+      trace.update({ output: rec.data })
+      break
+
+    case "error":
+      trace.event({
+        name: rec.stage,
+        startTime,
+        level: "ERROR",
+        statusMessage: rec.error,
+        metadata: rec.data,
+      })
+      break
+
+    case "tool_call":
+    case "retrieval":
+      // Timed work → span with real duration.
+      trace
+        .span({
+          name: rec.stage,
+          startTime,
+          endTime,
+          metadata: rec.data,
+        })
+        .end()
+      break
+
+    default:
+      // router_decision, safety_rule_match, and anything new → point-in-time event.
+      trace.event({
+        name: rec.stage,
+        startTime,
+        metadata: rec.data,
+      })
+  }
+}
+
 export type Tracer = {
   traceId: string
   log: (rec: Omit<TraceRecord, "ts" | "trace_id" | "span_id"> & { span_id?: string }) => void
@@ -80,6 +201,10 @@ export function createTracer(traceId: string = newTraceId()): Tracer {
   const filePath = join(TRACE_DIR, `${traceId}.jsonl`)
   const usageTotal: Required<LLMUsage> = { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
 
+  // Open a Langfuse trace for this request (no-op holder when unconfigured).
+  const lf = getLangfuse()
+  const lfTrace = lf ? lf.trace({ id: traceId, name: "chat_request" }) : null
+
   const addUsage = (u?: LLMUsage) => {
     if (!u) return
     usageTotal.input_tokens += u.input_tokens ?? 0
@@ -89,11 +214,22 @@ export function createTracer(traceId: string = newTraceId()): Tracer {
   }
 
   const write = (rec: TraceRecord) => {
-    if (!dirWritable) return
-    try {
-      appendFileSync(filePath, JSON.stringify(rec) + "\n")
-    } catch {
-      // best-effort — never let tracing break the request
+    // Sink 1: local JSONL (for the `npm run trace` inspector). Disabled on
+    // read-only serverless filesystems.
+    if (dirWritable) {
+      try {
+        appendFileSync(filePath, JSON.stringify(rec) + "\n")
+      } catch {
+        // best-effort — never let tracing break the request
+      }
+    }
+    // Sink 2: Langfuse (hosted, works on serverless).
+    if (lfTrace) {
+      try {
+        recordToLangfuse(lfTrace, rec)
+      } catch {
+        // best-effort — never let tracing break the request
+      }
     }
   }
 

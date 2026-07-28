@@ -15,7 +15,8 @@ import { stockCheck } from '@/lib/tools/stock-check';
 import { howToRag } from '@/lib/tools/how-to-rag';
 import { checkSafetyEscalation } from '@/lib/tools/safety-escalate';
 import { buildKit, detectProject, isExteriorProject } from '@/lib/tools/project-kit';
-import { createTracer } from '@/lib/trace';
+import { after } from 'next/server';
+import { createTracer, flushTraces } from '@/lib/trace';
 import type { ProductFilters, ProductCardData, Product, ProjectKit } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -412,6 +413,11 @@ export async function POST(req: Request) {
       );
     },
   });
+
+  // Flush queued Langfuse events AFTER the response is sent. On Vercel `after`
+  // runs via waitUntil, so the post-response flush never adds latency to the
+  // streamed answer the user is reading.
+  after(flushTraces);
 
   return createUIMessageStreamResponse({
     stream: uiStream,

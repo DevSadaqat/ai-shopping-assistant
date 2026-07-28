@@ -2,7 +2,7 @@
 
 Charlie is an AI assistant for a hardware / home-improvement store. It helps customers **find the right products fast**, **plan a whole project within a budget**, and it **knows when to stop and refer them to a licensed professional** (electrical, gas, asbestos, structural).
 
-It's a portfolio project built to show how I design and ship an LLM product end to end: intent routing, tool use, structured retrieval, a budget-aware recommendation engine, a polished chat UI with product tiles, request-level observability, and evals.
+It's a portfolio project built to show how I design and ship an LLM product end to end: intent routing, tool use, structured retrieval, a budget-aware recommendation engine, a polished chat UI with product tiles, request-level observability (local traces **and** hosted tracing via Langfuse), and evals.
 
 > **Live demo:** https://ai-shopping-assistant-hazel.vercel.app/
 
@@ -91,6 +91,7 @@ Design choices worth calling out:
 - **Next.js (App Router)**, **React 19**, **TypeScript**
 - **Vercel AI SDK v7** for streaming chat and structured output
 - **OpenAI:** `gpt-4o` for answers, `gpt-4o-mini` for routing and extraction
+- **Langfuse** for hosted LLM tracing — per-call token usage, latency, and auto-computed cost, alongside local JSONL traces
 - **Tailwind CSS v4** for the UI
 - **~480-SKU JSON catalog**, deterministically generated and committed so evals are reproducible
 - **Vitest** for evals
@@ -102,10 +103,19 @@ Design choices worth calling out:
 ```bash
 npm install
 echo "OPENAI_API_KEY=sk-..." > .env.local
+
+# Optional — enable hosted tracing (see Observability). Without these keys,
+# traces are still written locally to .traces/ only.
+# echo "LANGFUSE_PUBLIC_KEY=pk-lf-..." >> .env.local
+# echo "LANGFUSE_SECRET_KEY=sk-lf-..." >> .env.local
+# echo "LANGFUSE_BASEURL=https://cloud.langfuse.com" >> .env.local
+
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+Langfuse keys come from a free [Langfuse Cloud](https://cloud.langfuse.com) project (**Settings → API Keys**); match `LANGFUSE_BASEURL` to your region (`https://cloud.langfuse.com` for EU, `https://us.cloud.langfuse.com` for US).
 
 Useful scripts:
 
@@ -148,9 +158,11 @@ When an AI agent fails, a stack trace tells you nothing about _why_ the model ch
 
 ### Where traces live
 
-- One file per request at `.traces/{trace_id}.jsonl` (gitignored).
-- Same records mirrored to stdout for real-time tailing.
-- Each response includes an `x-trace-id` header so the client can correlate a UI turn to its trace file.
+Everything flows through one `Tracer` interface (`lib/trace.ts`) that fans out to two sinks, so instrumentation at the call sites never changes regardless of where traces land:
+
+- **Langfuse (hosted).** When the `LANGFUSE_*` keys are set, each request opens a Langfuse trace and its events map onto native observation types: `llm_call` → **generation** (model, token usage, auto-computed cost), `tool_call` / `retrieval` → **span**, and router / safety decisions → **event**, all nested under one trace. This is the sink that works in production — Vercel's serverless filesystem is read-only, so local file traces are silently dropped there, whereas Langfuse ships over HTTP. It also gives you a hosted waterfall UI, cost dashboards, and cross-request search for free.
+- **Local JSONL.** One file per request at `.traces/{trace_id}.jsonl` (gitignored), for offline inspection with `npm run trace` and `jq`. Written best-effort and disabled automatically on read-only filesystems.
+- Each response includes an `x-trace-id` header so a UI turn correlates to both its local trace file and its Langfuse trace.
 
 ### Event types
 
@@ -212,11 +224,12 @@ jq 'select(.stage=="router") | .prompt' .traces/trc_*.jsonl
 
 - **Router and extractor run in parallel.** The extractor is speculative, and its tokens are only useful when the intent turns out to be `PRODUCT_SEARCH`. The trace shows this cost per turn so the tradeoff is visible.
 - **The extractor system prompt embeds the catalog vocabulary** (all brands, categories, subcategories, features). This dominates its input tokens, and the trace makes that obvious and points at the first thing to cache if the catalog grows.
-- **Safety rules match before any model call.** A `safety_rule_match` event with no preceding `llm_call` is the deterministic refusal path, so the LLM is never the sole arbiter of a licensed-trade refusal.
-- **Tracing is best-effort.** File writes are wrapped in try/catch, so a filesystem failure will not break the request.
+- **Safety rules match before any model call.** A `safety_rule_match` event with no preceding `llm_call` is the deterministic refusal path, so the LLM is never the sole arbiter of a licensed-trade refusal. In Langfuse this shows as a trace with **zero generations** — visible proof the refusal never touches the model.
+- **Langfuse flushes _after_ the response, not during it.** Events are queued in memory and shipped in the background; `after(flushTraces)` (from `next/server`, backed by `waitUntil` on Vercel) flushes them once the streamed answer has already been sent, so hosted tracing adds no latency to what the user perceives.
+- **Tracing is best-effort on both sinks.** File writes and Langfuse calls are wrapped in try/catch, so a filesystem or network failure will never break the request.
 
 ---
 
 ## Deploy
 
-Deploys to [Vercel](https://vercel.com/new) out of the box. Set `OPENAI_API_KEY` in the project's environment variables.
+Deploys to [Vercel](https://vercel.com/new) out of the box. Set `OPENAI_API_KEY` in the project's environment variables. For hosted tracing, also set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASEURL` — recommended on Vercel, since the serverless filesystem is read-only and local `.traces/` files are dropped there, making Langfuse the only place traces survive in production.
