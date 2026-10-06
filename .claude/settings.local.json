@@ -6,7 +6,11 @@
       "Bash(npm run *)",
       "Bash(claude *)",
       "Bash(curl -s http://localhost:3000)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "mcp__claude_ai_Claude_Docs__batch",
+      "mcp__claude_ai_Claude_Docs__guide",
+      "mcp__claude_ai_Claude_Docs__update",
+      "mcp__claude_ai_Claude_Docs__create"
     ]
   }
 }
