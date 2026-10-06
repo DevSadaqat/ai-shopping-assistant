@@ -9,7 +9,8 @@
     "seed": "tsx scripts/generate-catalog.ts",
     "embed": "tsx scripts/embed-guides.ts",
     "trace": "tsx scripts/inspect-trace.ts",
-    "eval": "vitest run"
+    "test": "vitest run lib",
+    "eval": "vitest run eval"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.3",
