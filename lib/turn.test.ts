@@ -57,15 +57,15 @@ describe("planTurn", () => {
     expect(plan.system).toContain("Ask one focused clarifying question")
   })
 
-  it("treats an unsure safety flag like any other unsure intent and asks a clarifying question", async () => {
+  it("fails closed: gives a soft refusal even when the router is unsure about licensed-trade work", async () => {
     const plan = await planTurn(
       "can I move the power point behind my oven",
       deps({ router: { intent: "SAFETY_ESCALATE", confidence: "low" } }),
     )
 
-    expect(plan.kind).toBe("generate")
-    if (plan.kind !== "generate") return
-    expect(plan.path).toBe("generator:clarify")
+    expect(plan.kind).toBe("fixed")
+    if (plan.kind !== "fixed") return
+    expect(plan.path).toBe("safety_router_refused")
   })
 
   it("gives a soft refusal when the router is sure it's licensed-trade work no rule caught", async () => {
