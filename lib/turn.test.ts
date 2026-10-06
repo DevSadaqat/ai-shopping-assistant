@@ -221,6 +221,22 @@ describe("planTurn", () => {
     )
   })
 
+  it("apologises with a fixed reply when the router fails", async () => {
+    const plan = await planTurn(
+      "find me a drill",
+      deps({
+        router: () => {
+          throw new Error("router down")
+        },
+      }),
+    )
+
+    expect(plan.kind).toBe("fixed")
+    if (plan.kind !== "fixed") return
+    expect(plan.path).toBe("router_error")
+    expect(plan.text).toContain("could you rephrase")
+  })
+
   it("falls back to searching the customer's own words when filter extraction fails", async () => {
     const plan = await planTurn(
       "drill",
