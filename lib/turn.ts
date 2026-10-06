@@ -75,8 +75,11 @@ export async function planTurn(text: string, deps: TurnDeps): Promise<ReplyPlan>
   const { intent, confidence } = routerRes.value
 
   // Low confidence → CLARIFY. The router can be uncertain; treat that as a
-  // signal to ask, not to guess.
-  const effectiveIntent: Intent = confidence === "low" ? "CLARIFY" : intent
+  // signal to ask, not to guess. Except safety, which fails closed: a wrong
+  // refusal costs one message, a clarifying question on licensed-trade work
+  // invites the customer to keep pushing.
+  const effectiveIntent: Intent =
+    confidence === "low" && intent !== "SAFETY_ESCALATE" ? "CLARIFY" : intent
   tracer?.log({
     event: "router_decision",
     stage: "router",
