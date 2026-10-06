@@ -64,7 +64,12 @@ export async function planTurn(text: string, deps: TurnDeps): Promise<ReplyPlan>
   // the wasted call on other turns.
   progress("Understanding your request", "router")
   const [routerRes, filtersRes] = await Promise.all([
-    timed(() => deps.classifyIntent(text)),
+    timed(() =>
+      deps.classifyIntent(text).catch((err): null => {
+        tracer?.log({ event: "error", stage: "router", error: String(err) })
+        return null
+      }),
+    ),
     timed(() =>
       deps.extractFilters(text).catch((err): ProductFilters => {
         tracer?.log({ event: "error", stage: "extractor", error: String(err) })
@@ -72,6 +77,16 @@ export async function planTurn(text: string, deps: TurnDeps): Promise<ReplyPlan>
       }),
     ),
   ])
+  // Without an intent there's nothing to act on. A fixed reply avoids a second
+  // model call while the API may already be failing.
+  if (routerRes.value === null) {
+    progress("Preparing a response", "router_error")
+    return {
+      kind: "fixed",
+      text: "Sorry, I couldn't work that out — could you rephrase?",
+      path: "router_error",
+    }
+  }
   const { intent, confidence } = routerRes.value
 
   // Low confidence → CLARIFY. The router can be uncertain; treat that as a
